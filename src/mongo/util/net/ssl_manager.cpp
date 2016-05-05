@@ -888,14 +888,37 @@ std::string OSStatusToString(OSStatus status) {
 }
 
 Status importKeychainToX509_STORE(X509_STORE* verifyStore) {
+    OSStatus status;
+    CFArrayRef searchListConst = nullptr;
+
+    if ((status = SecKeychainCopySearchList(&searchListConst)) != 0) {
+        return {ErrorCodes::InvalidSSLConfiguration,
+                str::stream() << "Error enumerating certificates: " << OSStatusToString(status)};
+    }
+    auto searchListGuard = MakeGuard([&searchListConst]() { CFRelease(searchListConst); });
+
+    CFMutableArrayRef searchList = nullptr;
+    searchList = CFArrayCreateMutableCopy(kCFAllocatorDefault, 0, searchListConst);
+    auto searchListMutableGuard = MakeGuard([&searchList]() { CFRelease(searchList); });
+    
+    SecKeychainRef globalRootsKeychain;
+    if ((status = SecKeychainOpen("/System/Library/Keychains/SystemRootCertificates.keychain", &globalRootsKeychain)) != 0) {
+        return {ErrorCodes::InvalidSSLConfiguration,
+                str::stream() << "Error enumerating certificates: " << OSStatusToString(status)};
+    }
+    auto globalRootsKeychainGuard = MakeGuard([&globalRootsKeychain]() { CFRelease(globalRootsKeychain); });
+
+    CFArrayAppendValue(searchList, globalRootsKeychain);
+
     // First we construct CFDictionary that specifies the search for certificates we want to do.
     // These std::arrays make up the dictionary elements.
     // kSecClass -> kSecClassCertificates (search for certificates)
     // kSecReturnRef -> kCFBooleanTrue (return SecCertificateRefs)
     // kSecMatchLimit -> kSecMatchLimitAll (return ALL the certificates).
-    static std::array<const void*, 3> searchDictKeys = {kSecClass, kSecReturnRef, kSecMatchLimit};
-    static std::array<const void*, 3> searchDictValues = {
-        kSecClassCertificate, kCFBooleanTrue, kSecMatchLimitAll};
+    static std::array<const void*, 4> searchDictKeys = {
+        kSecClass, kSecReturnRef, kSecMatchLimit, kSecMatchSearchList};
+    static std::array<const void*, 4> searchDictValues = {
+        kSecClassCertificate, kCFBooleanTrue, kSecMatchLimitAll, searchList};
     static_assert(searchDictKeys.size() == searchDictValues.size(),
                   "Sizes of the search keys and values dictionaries should be the same size");
 
@@ -907,7 +930,6 @@ Status importKeychainToX509_STORE(X509_STORE* verifyStore) {
                                                              &kCFTypeDictionaryValueCallBacks));
 
     CFArrayRef result;
-    OSStatus status;
     // Run the search against the default list of keychains and store the result in a CFArrayRef
     if ((status = SecItemCopyMatching(searchDict, reinterpret_cast<CFTypeRef*>(&result))) != 0) {
         return {ErrorCodes::InvalidSSLConfiguration,
