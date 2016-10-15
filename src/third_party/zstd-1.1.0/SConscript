@@ -1,0 +1,16 @@
+Import("env")
+
+env = env.Clone()
+env.AppendUnique(
+    CPPPATH=['lib', 'lib/common'],
+    CPPDEFINES=["ZSTD_LEGACY_SUPPORT=0"],
+)
+
+sources = Glob('lib/common/*.c') + \
+          Glob('lib/compress/*.c') + \
+          Glob('lib/decompress/*.c') + \
+          Glob('lib/dictBuilder/*.c')
+env.Library(
+    target="zstdlib",
+    source=sources
+)

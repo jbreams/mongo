@@ -39,6 +39,7 @@ namespace mongo {
 enum class MessageCompressor : uint8_t {
     kNoop = 0,
     kSnappy = 1,
+    kZStd = 2,
     kExtended = 255,
 };
 

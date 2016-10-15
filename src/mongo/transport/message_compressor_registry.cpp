@@ -47,6 +47,8 @@ StringData getMessageCompressorName(MessageCompressor id) {
             return "noop"_sd;
         case MessageCompressor::kSnappy:
             return "snappy"_sd;
+        case MessageCompressor::kZStd:
+            return "zstd"_sd;
         default:
             fassert(40269, "Invalid message compressor ID");
     }
