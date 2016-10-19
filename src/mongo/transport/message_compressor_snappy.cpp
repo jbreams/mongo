@@ -42,11 +42,13 @@ namespace mongo {
 SnappyMessageCompressor::SnappyMessageCompressor()
     : MessageCompressorBase(MessageCompressor::kSnappy) {}
 
-std::size_t SnappyMessageCompressor::getMaxCompressedSize(size_t inputSize) {
+std::size_t SnappyMessageCompressor::getMaxCompressedSize(MessageCompressorManager* manager,
+                                                          size_t inputSize) {
     return snappy::MaxCompressedLength(inputSize);
 }
 
-StatusWith<std::size_t> SnappyMessageCompressor::compressData(ConstDataRange input,
+StatusWith<std::size_t> SnappyMessageCompressor::compressData(MessageCompressorManager* manager,
+                                                              ConstDataRange input,
                                                               DataRange output) {
     size_t outLength;
     snappy::RawCompress(input.data(), input.length(), const_cast<char*>(output.data()), &outLength);
@@ -55,7 +57,8 @@ StatusWith<std::size_t> SnappyMessageCompressor::compressData(ConstDataRange inp
     return {outLength};
 }
 
-StatusWith<std::size_t> SnappyMessageCompressor::decompressData(ConstDataRange input,
+StatusWith<std::size_t> SnappyMessageCompressor::decompressData(MessageCompressorManager* manager,
+                                                                ConstDataRange input,
                                                                 DataRange output) {
     bool ret =
         snappy::RawUncompress(input.data(), input.length(), const_cast<char*>(output.data()));

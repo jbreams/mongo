@@ -86,7 +86,7 @@ StatusWith<Message> MessageCompressorManager::compressMessage(const Message& msg
     LOG(3) << "Compressing message with " << compressor->getName();
 
     auto inputHeader = msg.header();
-    size_t bufferSize = compressor->getMaxCompressedSize(msg.dataSize()) +
+    size_t bufferSize = compressor->getMaxCompressedSize(this, msg.dataSize()) +
         CompressionHeader::size() + MsgData::MsgDataHeaderSize;
 
     CompressionHeader compressionHeader(
@@ -110,7 +110,7 @@ StatusWith<Message> MessageCompressorManager::compressMessage(const Message& msg
     compressionHeader.serialize(&output);
     ConstDataRange input(inputHeader.data(), inputHeader.data() + inputHeader.dataLen());
 
-    auto sws = compressor->compressData(input, output);
+    auto sws = compressor->compressData(this, input, output);
 
     if (!sws.isOK())
         return sws.getStatus();
@@ -142,7 +142,7 @@ StatusWith<Message> MessageCompressorManager::decompressMessage(const Message& m
 
     DataRangeCursor output(outMessage.data(), outMessage.data() + outMessage.dataLen());
 
-    auto sws = compressor->decompressData(input, output);
+    auto sws = compressor->decompressData(this, input, output);
 
     if (!sws.isOK())
         return sws.getStatus();

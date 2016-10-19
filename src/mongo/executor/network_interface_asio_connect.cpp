@@ -52,7 +52,8 @@ NetworkInterfaceASIO::AsyncConnection::AsyncConnection(std::unique_ptr<AsyncStre
                                                        rpc::ProtocolSet protocols)
     : _stream(std::move(stream)),
       _serverProtocols(protocols),
-      _clientProtocols(rpc::computeProtocolSet(WireSpec::instance().outgoing)) {}
+      _clientProtocols(rpc::computeProtocolSet(WireSpec::instance().outgoing)),
+      _compressorManager{new MessageCompressorManager()} {}
 
 AsyncStreamInterface& NetworkInterfaceASIO::AsyncConnection::stream() {
     return *_stream;

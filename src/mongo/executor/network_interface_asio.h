@@ -163,7 +163,7 @@ private:
         void setServerProtocols(rpc::ProtocolSet protocols);
 
         MessageCompressorManager& getCompressorManager() {
-            return _compressorManager;
+            return *_compressorManager;
         }
 
     private:
@@ -175,7 +175,7 @@ private:
         // Its expected that isMaster response is checked only on the caller.
         rpc::ProtocolSet _clientProtocols{rpc::supports::kNone};
 
-        MessageCompressorManager _compressorManager;
+        std::unique_ptr<MessageCompressorManager> _compressorManager;
     };
 
     /**

@@ -46,6 +46,7 @@ enum class MessageCompressor : uint8_t {
 StringData getMessageCompressorName(MessageCompressor id);
 using MessageCompressorId = std::underlying_type<MessageCompressor>::type;
 
+class MessageCompressorManager;
 class MessageCompressorBase {
     MONGO_DISALLOW_COPYING(MessageCompressorBase);
 
@@ -70,21 +71,26 @@ public:
      * This returns the maximum output size of a call to compressData. It is used
      * by the MessageCompressorManager to determine how big a buffer to allocate.
      */
-    virtual std::size_t getMaxCompressedSize(size_t inputSize) = 0;
+    virtual std::size_t getMaxCompressedSize(MessageCompressorManager* manager,
+                                             size_t inputSize) = 0;
 
     /*
      * This method compresses the data in the input ConstDataRange into the output DataRange.
      * It returns the number of bytes actually compressed into the output range, or an error
      * status.
      */
-    virtual StatusWith<std::size_t> compressData(ConstDataRange input, DataRange output) = 0;
+    virtual StatusWith<std::size_t> compressData(MessageCompressorManager* manager,
+                                                 ConstDataRange input,
+                                                 DataRange output) = 0;
 
     /*
      * This method decompresses the data in the input ConstDataRange into the output DataRange.
      * It returns the number of bytes actually decompressed into the output range, or an error
      * status.
      */
-    virtual StatusWith<std::size_t> decompressData(ConstDataRange input, DataRange output) = 0;
+    virtual StatusWith<std::size_t> decompressData(MessageCompressorManager* manager,
+                                                   ConstDataRange input,
+                                                   DataRange output) = 0;
 
     /*
      * This returns the number of bytes passed in the input for compressData

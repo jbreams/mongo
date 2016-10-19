@@ -31,6 +31,7 @@
 #include "mongo/base/disallow_copying.h"
 #include "mongo/base/status_with.h"
 #include "mongo/transport/message_compressor_base.h"
+#include "mongo/util/decorable.h"
 
 #include <vector>
 
@@ -41,7 +42,7 @@ class BSONObjBuilder;
 class Message;
 class MessageCompressorRegistry;
 
-class MessageCompressorManager {
+class MessageCompressorManager : public Decorable<MessageCompressorManager> {
     MONGO_DISALLOW_COPYING(MessageCompressorManager);
 
 public:

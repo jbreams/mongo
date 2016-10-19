@@ -33,11 +33,15 @@ class SnappyMessageCompressor final : public MessageCompressorBase {
 public:
     SnappyMessageCompressor();
 
-    std::size_t getMaxCompressedSize(size_t inputSize) override;
+    std::size_t getMaxCompressedSize(MessageCompressorManager* manager, size_t inputSize) override;
 
-    StatusWith<std::size_t> compressData(ConstDataRange input, DataRange output) override;
+    StatusWith<std::size_t> compressData(MessageCompressorManager* manager,
+                                         ConstDataRange input,
+                                         DataRange output) override;
 
-    StatusWith<std::size_t> decompressData(ConstDataRange input, DataRange output) override;
+    StatusWith<std::size_t> decompressData(MessageCompressorManager* manager,
+                                           ConstDataRange input,
+                                           DataRange output) override;
 };
 
 
