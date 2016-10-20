@@ -57,7 +57,7 @@ enum class ZStdPacketType : uint8_t {
 
 inline void writePacketType(DataRangeCursor* cursor, ZStdPacketType type) {
     cursor->writeAndAdvance<std::underlying_type<ZStdPacketType>::type>(
-            static_cast<std::underlying_type<ZStdPacketType>::type>(type));
+        static_cast<std::underlying_type<ZStdPacketType>::type>(type));
 }
 
 class ZStdState {
@@ -209,7 +209,7 @@ StatusWith<std::size_t> ZstdMessageCompressor::decompressData(MessageCompressorM
     ConstDataRangeCursor inputCursor(const_cast<char*>(input.data()),
                                      const_cast<char*>(input.data()) + input.length());
     auto packetType = static_cast<ZStdPacketType>(
-            inputCursor.readAndAdvance<std::underlying_type<ZStdPacketType>::type>().getValue());
+        inputCursor.readAndAdvance<std::underlying_type<ZStdPacketType>::type>().getValue());
 
     size_t outLength;
     switch (packetType) {
