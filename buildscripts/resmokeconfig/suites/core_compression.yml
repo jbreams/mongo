@@ -9,9 +9,9 @@ executor:
       shell_options:
         global_vars:
           TestData:
-            networkMessageCompressors: snappy
+            networkMessageCompressors: zstd
         readMode: commands
-        networkMessageCompressors: snappy
+        networkMessageCompressors: zstd
     hooks:
     - class: ValidateCollections
     - class: CleanEveryN
@@ -19,7 +19,7 @@ executor:
     fixture:
       class: MongoDFixture
       mongod_options:
-        networkMessageCompressors: snappy
+        networkMessageCompressors: zstd
         set_parameters:
           enableTestCommands: 1
 

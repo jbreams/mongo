@@ -37,6 +37,7 @@
 #include "mongo/transport/message_compressor_manager.h"
 #include "mongo/transport/message_compressor_registry.h"
 #include "mongo/transport/message_compressor_zstd.h"
+#include "mongo/util/log.h"
 
 #include "third_party/zstd-1.1.0/lib/dictBuilder/zdict.h"
 #include "third_party/zstd-1.1.0/lib/zstd.h"
@@ -45,6 +46,19 @@ namespace mongo {
 namespace {
 const auto kDictionarySize = 1024 * 100;
 const auto kTargetSampleSize = kDictionarySize * 100;
+const auto kTargetSampleCount = 1000;
+const auto kMaxTrainingSampleSize = 8192;
+
+enum class ZStdPacketType : uint8_t {
+    Normal = 0,
+    InlineDictionary = 1,
+    UsingDictionary = 2,
+};
+
+inline void writePacketType(DataRangeCursor* cursor, ZStdPacketType type) {
+    cursor->writeAndAdvance<std::underlying_type<ZStdPacketType>::type>(
+            static_cast<std::underlying_type<ZStdPacketType>::type>(type));
+}
 
 class ZStdState {
 public:
@@ -83,13 +97,12 @@ public:
 
         sampleSizes.push_back(input.length());
 
-        if (sampleSizes.size() > 1000 && curSampleSize >= kTargetSampleSize) {
+        if (sampleSizes.size() > kTargetSampleCount && curSampleSize >= kTargetSampleSize) {
             auto realDictSize = ZDICT_trainFromBuffer(dictionaryBytes.data(),
                                                       dictionaryBytes.size(),
                                                       samples.data(),
                                                       sampleSizes.data(),
                                                       sampleSizes.size());
-
             uassert(ErrorCodes::ZStdError,
                     ZDICT_getErrorName(realDictSize),
                     ZDICT_isError(realDictSize) == 0);
@@ -119,7 +132,7 @@ std::size_t ZstdMessageCompressor::getMaxCompressedSize(MessageCompressorManager
 
     auto dataSize = ZSTD_compressBound(inputSize) + sizeof(uint8_t);
     if (state.myParsedDictionary && !state.sentMyDictionary) {
-        return dataSize + state.dictionaryBytes.size();
+        dataSize += state.dictionaryBytes.size() + sizeof(size_t);
     }
 
     return dataSize;
@@ -129,13 +142,12 @@ StatusWith<std::size_t> ZstdMessageCompressor::compressData(MessageCompressorMan
                                                             ConstDataRange input,
                                                             DataRange output) {
     auto& state = getState(manager);
-    state.appendSample(input);
     DataRangeCursor outputCursor(const_cast<char*>(output.data()),
                                  const_cast<char*>(output.data()) + output.length());
 
     size_t outLength;
     if (!state.myParsedDictionary) {
-        outputCursor.writeAndAdvance<LittleEndian<uint8_t>>(0);
+        writePacketType(&outputCursor, ZStdPacketType::Normal);
 
         outLength = ZSTD_compressCCtx(state.compressionContext.get(),
                                       const_cast<char*>(outputCursor.data()),
@@ -150,13 +162,12 @@ StatusWith<std::size_t> ZstdMessageCompressor::compressData(MessageCompressorMan
 
         outLength += 1;
     } else if (!state.sentMyDictionary) {
-        outputCursor.writeAndAdvance<LittleEndian<uint8_t>>(1);
+        writePacketType(&outputCursor, ZStdPacketType::InlineDictionary);
         outputCursor.writeAndAdvance<LittleEndian<size_t>>(state.dictionaryBytes.size());
         memcpy(const_cast<char*>(outputCursor.data()),
                state.dictionaryBytes.data(),
                state.dictionaryBytes.size());
         outputCursor.advance(state.dictionaryBytes.size());
-
         outLength = ZSTD_compress_usingCDict(state.compressionContext.get(),
                                              const_cast<char*>(outputCursor.data()),
                                              outputCursor.length(),
@@ -171,7 +182,7 @@ StatusWith<std::size_t> ZstdMessageCompressor::compressData(MessageCompressorMan
         state.sentMyDictionary = true;
         state.dictionaryBytes.clear();
     } else {
-        outputCursor.writeAndAdvance<LittleEndian<uint8_t>>(2);
+        writePacketType(&outputCursor, ZStdPacketType::UsingDictionary);
         outLength = ZSTD_compress_usingCDict(state.compressionContext.get(),
                                              const_cast<char*>(outputCursor.data()),
                                              outputCursor.length(),
@@ -184,6 +195,9 @@ StatusWith<std::size_t> ZstdMessageCompressor::compressData(MessageCompressorMan
         outLength += 1;
     }
 
+    if (input.length() < kMaxTrainingSampleSize)
+        state.appendSample(input);
+
     counterHitCompress(input.length(), outLength);
     return {outLength};
 }
@@ -194,18 +208,19 @@ StatusWith<std::size_t> ZstdMessageCompressor::decompressData(MessageCompressorM
     auto& state = getState(manager);
     ConstDataRangeCursor inputCursor(const_cast<char*>(input.data()),
                                      const_cast<char*>(input.data()) + input.length());
-    auto packetType = inputCursor.readAndAdvance<LittleEndian<uint8_t>>().getValue();
+    auto packetType = static_cast<ZStdPacketType>(
+            inputCursor.readAndAdvance<std::underlying_type<ZStdPacketType>::type>().getValue());
 
     size_t outLength;
     switch (packetType) {
-        case 0:
+        case ZStdPacketType::Normal:
             outLength = ZSTD_decompressDCtx(state.decompressionContext.get(),
                                             const_cast<char*>(output.data()),
                                             output.length(),
                                             inputCursor.data(),
                                             inputCursor.length());
             break;
-        case 1: {
+        case ZStdPacketType::InlineDictionary: {
             auto dictSize = inputCursor.readAndAdvance<LittleEndian<size_t>>().getValue();
             state.theirParsedDictionary = decltype(state.theirParsedDictionary)(
                 ZSTD_createDDict(inputCursor.data(), dictSize),
@@ -215,7 +230,7 @@ StatusWith<std::size_t> ZstdMessageCompressor::decompressData(MessageCompressorM
                     state.theirParsedDictionary);
             inputCursor.advance(dictSize);
         }
-        case 2:
+        case ZStdPacketType::UsingDictionary:
             outLength = ZSTD_decompress_usingDDict(state.decompressionContext.get(),
                                                    const_cast<char*>(output.data()),
                                                    output.length(),
