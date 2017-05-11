@@ -1132,6 +1132,165 @@ public:
 
 } collectionModCommand;
 
+class SetCollMetaCommand : public Command {
+public:
+    SetCollMetaCommand() : Command("setCollMeta") {}
+
+    virtual bool slaveOk() const {
+        return false;
+    }
+
+    virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+        return true;
+    }
+
+    virtual void help(stringstream& help) const {
+        help << "Sets metadata on a collection.\n"
+             << "Example: { setCollMeta: 'foo', 'description': 'This collection stores foos' } "
+             << "Example: { setCollMeta: 'foo', 'description': null }\n";
+    }
+
+    virtual void addRequiredPrivileges(const std::string& dbname,
+                                       const BSONObj& cmdObj,
+                                       std::vector<Privilege>* out) {
+        ActionSet actions;
+        actions.addAction(ActionType::setCollMeta);
+        out->push_back(Privilege(parseResourcePattern(dbname, cmdObj), actions));
+    }
+
+    bool run(OperationContext* opCtx,
+             const string& dbname,
+             BSONObj& cmdObj,
+             string& errmsg,
+             BSONObjBuilder& result) {
+        const auto targetNs = parseNsCollectionRequired(dbname, cmdObj);
+        AutoGetCollectionOrViewForReadCommand ctx(opCtx, targetNs);
+        if (ctx.getCollection() == nullptr) {
+            errmsg = "Specified collection does not exist";
+            return false;
+        }
+
+        DBDirectClient client(opCtx);
+        BSONObjBuilder updateBob;
+        BSONObjBuilder setBob(updateBob.subobjStart("$set"));
+        for (const auto& elem : cmdObj) {
+            if (elem.fieldNameStringData() == "setCollMeta") {
+                continue;
+            }
+
+            setBob.append(elem);
+        }
+        setBob.doneFast();
+
+        const auto metaCollNs = NamespaceString("admin", "collmeta");
+        const Query query(BSON("_id" << targetNs.toString()));
+        client.update(metaCollNs.toString(), query, updateBob.done(), true, false);
+
+        return true;
+    }
+} setCollMetaCommand;
+
+class GetCollMetaCommand : public Command {
+public:
+    GetCollMetaCommand() : Command("getCollMeta") {}
+
+    virtual bool slaveOk() const {
+        return false;
+    }
+
+    virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+        return true;
+    }
+
+    virtual void help(stringstream& help) const {
+        help << "Gets metadata for a collection.\n"
+             << "Example: { getCollMeta: 'foo' } "
+             << "Example: { getCollMeta: 'foo', 'key': [ 'description' ] }\n"
+             << "Example: { getCollMeta: 'foo', 'key': 'description' }\n";
+    }
+
+    virtual void addRequiredPrivileges(const std::string& dbname,
+                                       const BSONObj& cmdObj,
+                                       std::vector<Privilege>* out) {
+        ActionSet actions;
+        actions.addAction(ActionType::getCollMeta);
+        out->push_back(Privilege(parseResourcePattern(dbname, cmdObj), actions));
+    }
+
+    bool run(OperationContext* opCtx,
+             const string& dbname,
+             BSONObj& cmdObj,
+             string& errmsg,
+             BSONObjBuilder& result) {
+        const auto targetNs = parseNsCollectionRequired(dbname, cmdObj);
+        AutoGetCollectionOrViewForReadCommand ctx(opCtx, targetNs);
+        if (ctx.getCollection() == nullptr) {
+            errmsg = "Specified collection does not exist";
+            return false;
+        }
+
+        const auto metaCollNs = NamespaceString("admin", "collmeta");
+        DBDirectClient client(opCtx);
+
+        const Query query(BSON("_id" << targetNs.toString()));
+        auto obj = client.findOne(metaCollNs.toString(), query);
+        if (obj.isEmpty()) {
+            errmsg = "No metadata was stored for this collection";
+            return false;
+        }
+
+        const auto appendKey = [&obj, &result, &errmsg](const BSONElement& key) {
+            if (key.type() != String) {
+                errmsg = "Key must be a string";
+                return false;
+            }
+            if (key.fieldNameStringData() == "_id")
+                return true;
+            if (const auto elem = obj[key.checkAndGetStringData()]) {
+                result << elem;
+                return true;
+            } else {
+                errmsg = "Requested metadata key is not set";
+                return false;
+            }
+        };
+
+        const auto checkKey = [&errmsg](const BSONElement& key) {
+            if (key.type() != String) {
+                errmsg = "Key must be a string";
+                return false;
+            }
+            return true;
+        };
+
+        if (const auto& elem = cmdObj["key"]) {
+            std::vector<BSONElement> keys;
+            if (elem.type() == Array) {
+                for (const auto& subElem : elem.Obj()) {
+                    if (!checkKey(subElem))
+                        return false;
+                    keys.push_back(subElem);
+                }
+            } else {
+                if (!checkKey(elem)) {
+                    return false;
+                }
+                keys.push_back(elem);
+            }
+
+            for (const auto& key : keys) {
+                appendKey(key);
+            }
+        } else {
+            for (const auto& elem : obj) {
+                appendKey(elem);
+            }
+        }
+
+        return true;
+    }
+} getCollMetaCmd;
+
 class DBStats : public Command {
 public:
     DBStats() : Command("dbStats", false, "dbstats") {}

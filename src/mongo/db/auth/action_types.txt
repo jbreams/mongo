@@ -49,6 +49,7 @@
 "flushRouterConfig",
 "fsync",
 "getCmdLineOpts",
+"getCollMeta",
 "getLog",
 "getParameter",
 "getShardMap",
@@ -95,6 +96,7 @@
 "revokeRolesFromUser",  # Not used for permissions checks, but to id the event in logs.
 "serverStatus",
 "setParameter",
+"setCollMeta",
 "shardCollection",  # Not used for permissions checks, but to id the event in logs.
 "shardingState",
 "shutdown",
