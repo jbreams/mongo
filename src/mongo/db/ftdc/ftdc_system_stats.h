@@ -61,4 +61,10 @@ protected:
  */
 void installSystemMetricsCollector(FTDCController* controller);
 
+/**
+ * Install a Linux Perf Counter collector.
+ * TODO: Find a better home for this
+ */
+void installLinuxPerfCounters(FTDCController* controller);
+
 }  // namespace mongo

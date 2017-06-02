@@ -337,6 +337,9 @@ void startFTDC() {
     // Install System Metric Collector as a periodic collector
     installSystemMetricsCollector(controller.get());
 
+    // TODO only do this on linux
+    installLinuxPerfCounters(controller.get());
+
     // Install file rotation collectors
     // These are collected on each file rotation.
 

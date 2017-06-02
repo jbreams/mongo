@@ -31,11 +31,18 @@ ftdcEnv.Library(
 )
 
 platform_libs = []
+sources = [
+    'ftdc_commands.cpp',
+    'ftdc_mongod.cpp',
+    'ftdc_system_stats.cpp',
+    'ftdc_system_stats_${TARGET_OS}.cpp',
+]
 
 if env.TargetOSIs('linux'):
     platform_libs = [
         '$BUILD_DIR/mongo/util/procparser'
     ]
+    sources += [ 'linux_perf_counters.cpp' ]
 elif env.TargetOSIs('windows'):
     platform_libs = [
         '$BUILD_DIR/mongo/util/perfctr_collect'
@@ -43,12 +50,7 @@ elif env.TargetOSIs('windows'):
 
 env.Library(
     target='ftdc_mongod',
-    source=[
-        'ftdc_commands.cpp',
-        'ftdc_mongod.cpp',
-        'ftdc_system_stats.cpp',
-        'ftdc_system_stats_${TARGET_OS}.cpp',
-    ],
+    source=sources,
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/db/commands',
