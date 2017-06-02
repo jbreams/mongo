@@ -75,11 +75,10 @@ class LinuxPerfCounterCollector final : public FTDCCollectorInterface {
     LinuxPerfCounterCollector& operator=(LinuxPerfCounterCollector&) = delete;
 
 public:
-    LinuxPerfCounterCollector() {
-    }
+    LinuxPerfCounterCollector() {}
 
     ~LinuxPerfCounterCollector() {
-        for (auto pair: counters) {
+        for (auto pair : counters) {
             close(pair.first);
         }
     }
@@ -89,7 +88,7 @@ public:
     }
 
     void collect(OperationContext* opCtx, BSONObjBuilder& builder) {
-        for (const auto& kv: counters) {
+        for (const auto& kv : counters) {
             long long counter = 0;
             ssize_t size = ::read(kv.first, &counter, sizeof(counter));
             if (size == -1) {
@@ -102,8 +101,8 @@ public:
 
         struct rusage usage = {};
         getrusage(RUSAGE_SELF, &usage);
-        builder << "voluntary_context_switches" << usage.ru_nvcsw
-                << "involuntary_context_switches" << usage.ru_nivcsw;
+        builder << "voluntary_context_switches" << usage.ru_nvcsw << "involuntary_context_switches"
+                << usage.ru_nivcsw;
     }
 };
 
@@ -131,8 +130,7 @@ MONGO_INITIALIZER(setupPerfCounters)(::mongo::InitializerContext* ctx) {
 
         auto fd = perf_event_open(&pe, 0, -1, leaderFd, 0);
         if (fd == -1) {
-            warning() << "Error opening perf counter " << name << ": "
-                      << errnoWithDescription();
+            warning() << "Error opening perf counter " << name << ": " << errnoWithDescription();
             continue;
         }
 
