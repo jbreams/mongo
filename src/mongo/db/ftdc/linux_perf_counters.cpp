@@ -32,6 +32,7 @@
 
 #include <tuple>
 
+#include "mongo/base/init.h"
 #include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -43,6 +44,7 @@
 #include <asm/unistd.h>
 #include <linux/perf_event.h>
 #include <sys/ioctl.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 namespace mongo {
@@ -60,10 +62,11 @@ constexpr std::initializer_list<std::tuple<StringData, uint32_t, uint64_t>> kCou
         "branch_instructions"_sd, PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_INSTRUCTIONS),
     std::make_tuple("branch_misses"_sd, PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_MISSES),
     // Software Counters
-    std::make_tuple("context_switches"_sd, PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CONTEXT_SWITCHES),
     std::make_tuple("cpu_migrations"_sd, PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_MIGRATIONS),
     std::make_tuple("page_faults_major"_sd, PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS_MAJ),
     std::make_tuple("page_faults_minor"_sd, PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS_MIN)};
+
+static std::vector<std::pair<int, StringData>> counters;
 
 }  // namespace
 
@@ -73,49 +76,11 @@ class LinuxPerfCounterCollector final : public FTDCCollectorInterface {
 
 public:
     LinuxPerfCounterCollector() {
-        int leaderFd = -1;
-        for (const auto& def : kCounterDefs) {
-            StringData name;
-            int type;
-            int config;
-            std::tie(name, type, config) = def;
-
-            perf_event_attr pe = {};
-            pe.type = type;
-            pe.size = sizeof(pe);
-            pe.config = config;
-            pe.exclude_kernel = 1;
-            pe.exclude_hv = 1;
-            pe.disabled = 1;
-            pe.read_format = PERF_FORMAT_GROUP | PERF_FORMAT_ID;
-
-            auto fd = perf_event_open(&pe, 0, -1, leaderFd, 0);
-            if (fd == -1) {
-                warning() << "Error opening perf counter " << name << ": "
-                          << errnoWithDescription();
-                continue;
-            }
-
-            if (leaderFd == -1) {
-                leaderFd = fd;
-            }
-
-            uint64_t counterId;
-            ioctl(fd, PERF_EVENT_IOC_ID, &counterId);
-
-            _fds.emplace_back(fd);
-            _idsToNames.emplace(counterId, name.toString());
-        }
-
-        _readBuffer.resize((_fds.size() * sizeof(read_value)) + sizeof(read_format));
-        ioctl(leaderFd, PERF_EVENT_IOC_RESET, PERF_IOC_FLAG_GROUP);
-        ioctl(leaderFd, PERF_EVENT_IOC_ENABLE, PERF_IOC_FLAG_GROUP);
     }
 
     ~LinuxPerfCounterCollector() {
-        ioctl(_fds.front(), PERF_EVENT_IOC_DISABLE, PERF_IOC_FLAG_GROUP);
-        for (auto fd : _fds) {
-            close(fd);
+        for (auto pair: counters) {
+            close(pair.first);
         }
     }
 
@@ -124,37 +89,64 @@ public:
     }
 
     void collect(OperationContext* opCtx, BSONObjBuilder& builder) {
-        struct read_format* perfData = reinterpret_cast<read_format*>(_readBuffer.data());
+        for (const auto& kv: counters) {
+            long long counter = 0;
+            ssize_t size = ::read(kv.first, &counter, sizeof(counter));
+            if (size == -1) {
+                warning() << "Error reading perf counter: " << errnoWithDescription();
+                continue;
+            }
 
-        if (read(_fds.front(), _readBuffer.data(), _readBuffer.size()) == -1) {
-            warning() << "Error reading perf counters " << errnoWithDescription();
+            builder << kv.second << counter;
         }
 
-        for (uint64_t i = 0; i < perfData->nr; i++) {
-            long long value = perfData->values[i].value;
-            const auto& name = _idsToNames[perfData->values[i].id];
-            builder << name << value;
-        }
+        struct rusage usage = {};
+        getrusage(RUSAGE_SELF, &usage);
+        builder << "voluntary_context_switches" << usage.ru_nvcsw
+                << "involuntary_context_switches" << usage.ru_nivcsw;
     }
-
-private:
-    struct read_value {
-        uint64_t value;
-        uint64_t id;
-    };
-    struct read_format {
-        uint64_t nr;
-        struct read_value values[];
-    };
-
-    std::vector<uint8_t> _readBuffer;
-
-    std::vector<int> _fds;
-    stdx::unordered_map<uint64_t, std::string> _idsToNames;
 };
 
 void installLinuxPerfCounters(FTDCController* controller) {
     controller->addPeriodicCollector(stdx::make_unique<LinuxPerfCounterCollector>());
+}
+
+MONGO_INITIALIZER(setupPerfCounters)(::mongo::InitializerContext* ctx) {
+    int leaderFd = -1;
+
+    for (const auto& def : kCounterDefs) {
+        StringData name;
+        int type;
+        int config;
+        std::tie(name, type, config) = def;
+
+        perf_event_attr pe = {};
+        pe.type = type;
+        pe.size = sizeof(pe);
+        pe.config = config;
+        pe.exclude_kernel = 1;
+        pe.exclude_hv = 1;
+        pe.inherit = 1;
+        pe.disabled = leaderFd == -1 ? 1 : 0;
+
+        auto fd = perf_event_open(&pe, 0, -1, leaderFd, 0);
+        if (fd == -1) {
+            warning() << "Error opening perf counter " << name << ": "
+                      << errnoWithDescription();
+            continue;
+        }
+
+        if (leaderFd == -1) {
+            leaderFd = fd;
+        }
+
+        counters.emplace_back(std::make_pair(fd, name));
+    }
+
+    ioctl(leaderFd, PERF_EVENT_IOC_RESET, 0);
+    ioctl(leaderFd, PERF_EVENT_IOC_ENABLE, 0);
+
+    return Status::OK();
 }
 
 }  // namespace mongo
