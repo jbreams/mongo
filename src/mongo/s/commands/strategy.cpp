@@ -754,7 +754,8 @@ DbResponse Strategy::clientCommand(OperationContext* opCtx, const Message& m) {
         } else {
             cmdSpan = tracing::OperationSpan::initialize(opCtx, request.getCommandName());
         }
-
+        cmdSpan->log({"commandBody", request.body.toString()});
+        cmdSpan->log({"databaseName", request.getDatabase()});
         // Execute.
         std::string db = request.getDatabase().toString();
         try {

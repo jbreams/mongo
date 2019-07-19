@@ -977,6 +977,8 @@ DbResponse receivedCommands(OperationContext* opCtx,
         } else {
             commandSpan->setTag("peerAddress", "<internal client>"_sd);
         }
+        commandSpan->log({"commandBody", request.body.toString()});
+        commandSpan->log({"databaseName", request.getDatabase()});
         try {  // Execute.
             curOpCommandSetup(opCtx, request);
 
