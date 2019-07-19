@@ -45,4 +45,4 @@ std::unique_ptr<tracing::Span>& getServiceSpan(ServiceContext* service);
 Tracer& getTracer();
 }
 
-} // namespace mongo
+}  // namespace mongo

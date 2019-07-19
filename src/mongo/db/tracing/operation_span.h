@@ -36,6 +36,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/tracing/tracing.h"
+#include "mongo/util/concurrency/with_lock.h"
 
 namespace mongo {
 namespace tracing {
@@ -43,28 +44,36 @@ namespace tracing {
 class OperationSpan : public Span, public std::enable_shared_from_this<OperationSpan> {
 public:
     OperationSpan(OperationContext* opCtx,
-                  std::unique_ptr<opentracing::Span> span) :
-        Span(std::move(span)),
-        _opCtx(opCtx) {}
+                  std::shared_ptr<tracing::Span> parent,
+                  std::unique_ptr<opentracing::Span> span)
+        : Span(std::move(span)), _parent(std::move(parent)), _opCtx(opCtx) {}
 
     static std::shared_ptr<Span> make(OperationContext* opCtx,
                                       StringData name,
-                                      std::initializer_list<SpanReference> references = {});
+                                      std::initializer_list<SpanReference> references = {},
+                                      std::shared_ptr<Span> parent = nullptr);
     static std::shared_ptr<Span> getCurrent(OperationContext* opCtx);
     static std::shared_ptr<Span> makeChildOf(OperationContext* opCtx, StringData name);
     static std::shared_ptr<Span> makeFollowsFrom(OperationContext* opCtx, StringData name);
-    static std::shared_ptr<Span> initialize(OperationContext* opCtx,
-                           StringData opName,
-                           boost::optional<SpanReference> parentSpan = boost::none);
+    static std::shared_ptr<Span> initialize(
+        OperationContext* opCtx,
+        StringData opName,
+        boost::optional<SpanReference> parentSpan = boost::none);
 
     void finish() override;
 
 private:
     static std::shared_ptr<Span> _findTop(OperationContext* opCtx);
+    static std::shared_ptr<Span> _initializeImpl(
+        WithLock,
+        OperationContext* opCtx,
+        StringData opName,
+        boost::optional<SpanReference> parentSpan = boost::none);
 
     bool _finished = false;
+    std::shared_ptr<Span> _parent = nullptr;
     OperationContext* const _opCtx;
 };
 
-} // namespace tracing
-} // namespace mongo
+}  // namespace tracing
+}  // namespace mongo

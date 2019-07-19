@@ -32,8 +32,8 @@ namespace mongo {
 class TracingSpan {
     TracingSpan(TracingSpan&) = delete;
     TracingSpan& operator=(TracingSpan&) = delete;
-public:
 
+public:
     explicit TracingSpan(ServiceContext* service);
     explicit TracingSpan(OperationContext* opCtx);
     explicit TracingSpan(Client* client);
@@ -48,4 +48,4 @@ public:
 
 Status initializeTracing(const std::string& config);
 
-} // namespace mongo
+}  // namespace mongo

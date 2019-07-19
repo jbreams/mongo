@@ -57,7 +57,7 @@ BSONObj processParentSpan = BSONObj();
 
 const auto getServiceDecoration =
     ServiceContext::declareDecoration<std::unique_ptr<tracing::Span>>();
-} // namepsace
+}  // namepsace
 
 namespace tracing {
 std::unique_ptr<tracing::Span>& getServiceSpan(ServiceContext* service) {
@@ -67,7 +67,7 @@ std::unique_ptr<tracing::Span>& getServiceSpan(ServiceContext* service) {
 Tracer& getTracer() {
     return *Tracer::Global();
 }
-} // namespace tracing
+}  // namespace tracing
 
 
 void setupTracing(ServiceContext* service, std::string serviceName) {
@@ -93,7 +93,8 @@ void setupTracing(ServiceContext* service, std::string serviceName) {
     std::unique_ptr<tracing::SpanContext> parentSpan;
     if (!processParentSpan.isEmpty()) {
         try {
-            auto maybeParentSpan = tracing::extractSpanContext(BSON("$spanContext" << processParentSpan));
+            auto maybeParentSpan =
+                tracing::extractSpanContext(BSON("$spanContext" << processParentSpan));
             if (maybeParentSpan) {
                 parentSpan = std::move(*maybeParentSpan);
                 log() << "Extracted parent tracing span from command line options: "
@@ -107,8 +108,7 @@ void setupTracing(ServiceContext* service, std::string serviceName) {
 
     std::unique_ptr<tracing::Span> rootSpan;
     if (parentSpan) {
-        rootSpan = tracing::Span::make(serviceName,
-                                       { tracing::FollowsFrom(parentSpan.get()) });
+        rootSpan = tracing::Span::make(serviceName, {tracing::FollowsFrom(parentSpan.get())});
     } else {
         rootSpan = tracing::Span::make(serviceName);
     }
@@ -134,4 +134,4 @@ Status setProcessParentSpan(const std::string& value) try {
     return e.toStatus();
 }
 
-} // namespace mongo
+}  // namespace mongo

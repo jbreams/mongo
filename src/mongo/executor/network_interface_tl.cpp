@@ -219,20 +219,19 @@ Status NetworkInterfaceTL::startCommand(const TaskExecutor::CallbackHandle& cbHa
 
     LOG(3) << "startCommand: " << redact(request.toString());
 
-    BSONObjBuilder newMetadata(std::move(request.metadata));
     if (_metadataHook) {
+        BSONObjBuilder newMetadata(std::move(request.metadata));
         auto status = _metadataHook->writeRequestMetadata(request.opCtx, &newMetadata);
         if (!status.isOK()) {
             return status;
         }
+
+        request.metadata = newMetadata.obj();
     }
 
     auto commandSpan = tracing::OperationSpan::makeFollowsFrom(request.opCtx, "acquireConn");
-    if (commandSpan) {
-        commandSpan->inject(&newMetadata);
-    }
 
-    request.metadata = newMetadata.obj();
+
     auto cmdPF = makePromiseFuture<RemoteCommandOnAnyResponse>();
 
     auto cmdState = CommandState::make(this, request, cbHandle, std::move(cmdPF.promise));
@@ -323,6 +322,11 @@ Status NetworkInterfaceTL::startCommand(const TaskExecutor::CallbackHandle& cbHa
                                         swConn.getValue()->getHostAndPort().toString());
                         newSpan->setTag("commandName",
                                         cmdState->request->cmdObj.firstElementFieldName());
+
+                        BSONObjBuilder spanInjector(std::move(cmdState->request->metadata));
+                        newSpan->inject(&spanInjector);
+                        cmdState->request->metadata = spanInjector.obj();
+
                         cmdState->span = std::move(newSpan);
                     }
 

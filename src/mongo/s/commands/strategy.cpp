@@ -793,6 +793,7 @@ DbResponse Strategy::clientCommand(OperationContext* opCtx, const Message& m) {
             dbResponse.exhaustCursorId = cursorObj.getField("id").numberLong();
         }
     }
+    dbResponse.response = reply->done();
 
     return dbResponse;
 }
