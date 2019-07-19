@@ -119,6 +119,61 @@ void Span::setTag(StringData tagName, const Span::TagValue& value) {
                 value);
 }
 
+const std::string errorCategoryString(const DBException& error) {
+    // there doesn't seem to be a error.category field to switch on...
+    if (error.isA<ErrorCategory::NetworkError>()) {
+        return "NetworkError";
+    }
+    if (error.isA<ErrorCategory::Interruption>()) {
+        return "Interruption";
+    }
+    if (error.isA<ErrorCategory::NotMasterError>()) {
+        return "NotMasterError";
+    }
+    if (error.isA<ErrorCategory::StaleShardVersionError>()) {
+        return "StaleShardVersion";
+    }
+    if (error.isA<ErrorCategory::NeedRetargettingError>()) {
+        return "NeedRetargettingError";
+    }
+    if (error.isA<ErrorCategory::WriteConcernError>()) {
+        return "WriteConcernError";
+    }
+    if (error.isA<ErrorCategory::ShutdownError>()) {
+        return "ShutdownError";
+    }
+    if (error.isA<ErrorCategory::CancelationError>()) {
+        return "CancelationError";
+    }
+    if (error.isA<ErrorCategory::ConnectionFatalMessageParseError>()) {
+        return "ConnectionFatalMessageParseError";
+    }
+    if (error.isA<ErrorCategory::ExceededTimeLimitError>()) {
+        return "ExceededTimeLimitError";
+    }
+    if (error.isA<ErrorCategory::SnapshotError>()) {
+        return "SnapshotError";
+    }
+    if (error.isA<ErrorCategory::VoteAbortError>()) {
+        return "VoteAbortError";
+    }
+    if (error.isA<ErrorCategory::NonResumableChangeStreamError>()) {
+        return "NonResumableChangeStreamError";
+    }
+    return "Exception";
+}
+
+void Span::logError(const DBException& error) noexcept {
+    if (_span) {
+        setTag("error", true);
+        _span->Log({{"event", "error"},
+                    {"error.kind", errorCategoryString(error)},
+                    {"error.code", std::string(error.codeString())},
+                    {"message", std::string(error.what())}});
+    }
+}
+
+
 void Span::log(const Span::LogEntry& item) {
     stdx::visit(overloaded{[&](auto arg) {
                                _span->Log({{fromStringData(item.first), arg}});

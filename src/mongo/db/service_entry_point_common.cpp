@@ -947,6 +947,8 @@ DbResponse receivedCommands(OperationContext* opCtx,
             }
 
         } catch (const DBException& ex) {
+            if (commandSpan)
+                commandSpan->logError(ex);
             // If this error needs to fail the connection, propagate it out.
             if (ErrorCodes::isConnectionFatalMessageParseError(ex.code()))
                 throw;
@@ -1003,6 +1005,9 @@ DbResponse receivedCommands(OperationContext* opCtx,
 
             execCommandDatabase(opCtx, c, request, replyBuilder.get(), behaviors);
         } catch (const DBException& ex) {
+            if (commandSpan)
+                commandSpan->logError(ex);
+
             BSONObjBuilder metadataBob;
             behaviors.appendReplyMetadataOnError(opCtx, &metadataBob);
 

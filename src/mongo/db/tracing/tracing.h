@@ -71,6 +71,7 @@ public:
     }
 
     virtual void log(const LogEntry& entry);
+    void logError(const DBException& error) noexcept;
     virtual void finish();
     virtual void inject(BSONObjBuilder* bob);
     void setOperationName(StringData name);
@@ -91,6 +92,8 @@ private:
 extern thread_local std::shared_ptr<Span> currentOpSpan;
 
 boost::optional<std::unique_ptr<SpanContext>> extractSpanContext(const BSONObj& body);
+
+void logSpanError(const std::unique_ptr<Span>& span, const DBException& error) noexcept;
 
 }  // namespace tracing
 }  // namespace mongo
