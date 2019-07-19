@@ -46,7 +46,7 @@ const auto getSpanState = OperationContext::declareDecoration<OperationSpanState
 
 SpanReference getServiceSpanReference(OperationContext* opCtx) {
     SpanContext* serviceSpanCtx = nullptr;
-    if (opCtx) {
+    if (opCtx && opCtx->getServiceContext()) {
         serviceSpanCtx = const_cast<SpanContext*>(&getServiceSpan(opCtx->getServiceContext())->context());
     } else if (hasGlobalServiceContext()) {
         serviceSpanCtx = const_cast<SpanContext*>(&getServiceSpan(getGlobalServiceContext())->context());

@@ -228,6 +228,8 @@ private:
      */
     Timestamp _getTransactionReadTimestamp(WT_SESSION* session);
 
+    OperationContext* _opCtx = nullptr;
+
     WiredTigerSessionCache* _sessionCache;  // not owned
     WiredTigerOplogManager* _oplogManager;  // not owned
     UniqueWiredTigerSession _session;

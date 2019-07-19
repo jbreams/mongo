@@ -196,6 +196,7 @@ void WiredTigerRecoveryUnit::_commit() {
 
     commitRegisteredChanges(commitTime);
     _setState(State::kInactive);
+    _opCtx = nullptr;
 }
 
 void WiredTigerRecoveryUnit::_abort() {
@@ -211,6 +212,7 @@ void WiredTigerRecoveryUnit::_abort() {
 
     abortRegisteredChanges();
     _setState(State::kInactive);
+    _opCtx = nullptr;
 }
 
 void WiredTigerRecoveryUnit::beginUnitOfWork(OperationContext* opCtx) {
@@ -219,6 +221,8 @@ void WiredTigerRecoveryUnit::beginUnitOfWork(OperationContext* opCtx) {
               str::stream() << "cannot begin unit of work while commit or rollback handlers are "
                                "running: "
                             << toString(_getState()));
+
+    _opCtx = opCtx;
     _setState(_isActive() ? State::kActive : State::kInactiveInUnitOfWork);
 }
 
@@ -239,11 +243,13 @@ void WiredTigerRecoveryUnit::prepareUnitOfWork() {
 void WiredTigerRecoveryUnit::commitUnitOfWork() {
     invariant(_inUnitOfWork(), toString(_getState()));
     _commit();
+    _opCtx = nullptr;
 }
 
 void WiredTigerRecoveryUnit::abortUnitOfWork() {
     invariant(_inUnitOfWork(), toString(_getState()));
     _abort();
+    _opCtx = nullptr;
 }
 
 void WiredTigerRecoveryUnit::_ensureSession() {
@@ -784,13 +790,14 @@ void WiredTigerRecoveryUnit::updateSpanInfo(State oldState, State newState) {
         case State::kInactive:
             if (_span) {
                 auto span = std::move(_span);
+                span->finish();
             }
             break;
         case State::kInactiveInUnitOfWork:
             break;
         case State::kActive:
         case State::kActiveNotInUnitOfWork: {
-            _span = tracing::OperationSpan::makeFollowsFrom(nullptr, "storage read");
+            _span = tracing::OperationSpan::makeFollowsFrom(_opCtx, "storage read");
             auto readSource = getTimestampReadSource();
             if (readSource != ReadSource::kUnset)
                 _span->setTag("readSource", toString(readSource));
