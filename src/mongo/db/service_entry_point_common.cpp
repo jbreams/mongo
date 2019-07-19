@@ -941,9 +941,9 @@ DbResponse receivedCommands(OperationContext* opCtx,
             auto spanContext = tracing::extractSpanContext(request.body);
             if (spanContext) {
                 commandSpan = tracing::OperationSpan::initialize(
-                    opCtx, "handleRequest", tracing::ChildOf(spanContext->get()));
+                    opCtx, request.getCommandName(), tracing::ChildOf(spanContext->get()));
             } else {
-                commandSpan = tracing::OperationSpan::initialize(opCtx, "handleRequest");
+                commandSpan = tracing::OperationSpan::initialize(opCtx, request.getCommandName());
             }
 
         } catch (const DBException& ex) {
@@ -971,7 +971,6 @@ DbResponse receivedCommands(OperationContext* opCtx,
             return;  // From lambda. Don't try executing if parsing failed.
         }
 
-        commandSpan->setTag("commandName", request.getCommandName());
         auto client = opCtx->getClient();
         if (client->hasRemote()) {
             commandSpan->setTag("peerAddress", client->getRemote().toString());

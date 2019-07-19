@@ -750,9 +750,9 @@ DbResponse Strategy::clientCommand(OperationContext* opCtx, const Message& m) {
         auto contextFromClient = tracing::extractSpanContext(request.body);
         if (contextFromClient) {
             cmdSpan = tracing::OperationSpan::initialize(
-                opCtx, "handleRequest", tracing::FollowsFrom(contextFromClient->get()));
+                opCtx, request.getCommandName(), tracing::FollowsFrom(contextFromClient->get()));
         } else {
-            cmdSpan = tracing::OperationSpan::initialize(opCtx, "handleRequest");
+            cmdSpan = tracing::OperationSpan::initialize(opCtx, request.getCommandName());
         }
 
         // Execute.

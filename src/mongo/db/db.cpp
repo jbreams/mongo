@@ -1090,7 +1090,8 @@ int mongoDbMain(int argc, char* argv[], char** envp) {
     // initializeServerGlobalState) and before the creation of any other threads
     startSignalProcessingThread();
 
-    setupTracing(service, "mongod");
+    std::string tracingServiceName = str::stream() << "mongod-" << serverGlobalParams.port;
+    setupTracing(service, tracingServiceName);
 
     auto& serviceSpan = tracing::getServiceSpan(service);
     serviceSpan->setTag("port", serverGlobalParams.port);
