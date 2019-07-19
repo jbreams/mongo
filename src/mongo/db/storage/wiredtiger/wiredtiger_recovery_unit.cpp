@@ -796,8 +796,10 @@ void WiredTigerRecoveryUnit::updateSpanInfo(State oldState, State newState) {
         case State::kInactiveInUnitOfWork:
             break;
         case State::kActive:
+            if (_span)
+                break;
         case State::kActiveNotInUnitOfWork: {
-            _span = tracing::OperationSpan::makeFollowsFrom(_opCtx, "storage read");
+            _span = tracing::OperationSpan::makeFollowsFrom(opCtx, "storage read");
             auto readSource = getTimestampReadSource();
             if (readSource != ReadSource::kUnset)
                 _span->setTag("readSource", toString(readSource));
