@@ -55,6 +55,7 @@ env.SConscript(
         'idl',
         'installer',
         'logv2',
+        'migrator',
         'platform',
         'rpc',
         's',

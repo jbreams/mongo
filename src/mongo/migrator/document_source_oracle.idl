@@ -1,0 +1,132 @@
+global:
+    cpp_namespace: "mongo::migrator"
+    cpp_includes:
+        - "mongo/migrator/oracle_field_spec.h"
+
+imports:
+    - "mongo/idl/basic_types.idl"
+
+types:
+    OracleFieldSpec:
+        description: "Describes a field to select from an oracle database"
+        bson_serialization_type: any
+        cpp_type: "mongo::migrator::OracleFieldSpec"
+        serializer: mongo::migrator::OracleFieldSpec::serializeToBSON
+        deserializer: mongo::migrator::OracleFieldSpec::parseFromBSON
+
+enums:
+    OracleJoinType:
+        description: "Type of join to perform between Oracle tables"
+        type: string
+        values:
+            kInner: "inner"
+            kLeftOuter: "leftOuter"
+            kRightOuter: "rightOuter"
+            kFullOuter: "fullOuter"
+
+    OracleMergeType:
+        description: "Types of merges to perform between BSON object and Oracle table"
+        type: string
+        values:
+            kManyToOne: "manyToOne"
+            kOneToOne: "oneToOne"
+
+structs:
+    OracleJoinSpec:
+        description: "Describes a join with another Oracle table"
+        fields:
+            localTable:
+                description: |-
+                    The local table to join with. Defaults to the table being queried from at the 
+                    pipeline stage.
+                type: string
+                optional: true
+            foreignTable:
+                description: "The foreign table to join on"
+                type: string
+            fields:
+                description: "The fields to select from the foreign table"
+                type: array<OracleFieldSpec>
+                optional: true
+            foreignKey:
+                description: "Which field in the foreign table to join on"
+                type: string
+            localKey:
+                description: |-
+                    Which fields in the local table or current BSON document to join on -
+                    defaults to primaryKey
+                type: string
+                optional: true
+            type:
+                description: "Type of SQL join to perform"
+                type: OracleJoinType
+
+    OracleMergeWithSpec:
+        description: "Describes how to merge a bson object with the results of an Oracle query"
+        fields:
+            foreignKey:
+                description: "Which field in the foreign table to join on"
+                type: string
+            localKey:
+                description: |-
+                    What field in the current BSON document to join on -
+                    defaults to the primaryKey
+                type: string
+                optional: true
+            targetField:
+                description: "The field to create in the current document as the result of the merge"
+                type: string
+            type:
+                description: "Type of merge to perform"
+                type: OracleMergeType
+
+    DocumentSourceOracleSpec:
+        description: "The arguments to the $oracle aggregation pipeline stage"
+        fields:
+            table:
+                description: "The name of the table to query from"
+                type: string
+            fields:
+                description: "List of fields to select from table"
+                type: array<OracleFieldSpec>
+                optional: true
+            primaryKey:
+                description: "Which field should be considered the primary key"
+                type: string
+            joins:
+                description: "SQL joins to perform as part of the query"
+                type: array<OracleJoinSpec>
+                optional: true
+            mergeWith:
+                description: |-
+                    This agg stage merges the result of an oracle query into a new field in the
+                    current document.
+                type: OracleMergeWithSpec
+                optional: true
+
+    ConfigureOracleResponse:
+        description: "The response from the configureOracle command"
+        strict: true
+        fields:
+            oracleVersion:
+                type: string
+
+commands:
+    configureOracle:
+        description: "Configures the options for the Oracle connection pool used by the $oracle aggregation stage"
+        cpp_name: ConfigureOracleCommand
+        command_name: configureOracle
+        strict: true
+        namespace: ignored
+        api_version: 1
+        reply_type: ConfigureOracleResponse 
+        fields:
+            connectionString:
+                description: "Connection string for connecting to oracle database"
+                type: string
+            username:
+                description: "Username to authenticate to oracle database with"
+                type: string
+            password:
+                description: "Password to authenticate to oracle database with"
+                type: string

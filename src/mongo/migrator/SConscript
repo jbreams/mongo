@@ -1,0 +1,48 @@
+# -*- mode: python; -*-
+
+Import('env')
+env = env.Clone()
+
+env.Library(
+   target='odpi-c',
+   source=[
+       'odpi-4.1.0/embed/dpi.c',
+       'oracle_helpers.cpp',
+   ],
+   SYSLIBDEPS=[
+       'clntsh',
+       'occi',
+   ],
+)
+
+env.Append(
+    CPPPATH=["odpi-4.1.0/include"]
+)
+
+env.Library(
+    target='aggregate_from_oracle',
+    source=[
+        'document_source_oracle.idl',
+        'document_source_oracle.cpp',
+        'oracle_conn_manager.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/db/pipeline/aggregation',
+        'odpi-c',
+    ]
+)
+
+env.Program(
+    target="mongomigrator",
+    source=[
+        'migrator.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/db/pipeline/aggregation',
+        '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/util/signal_handlers',
+        'odpi-c',
+    ],
+
+    AIB_COMPONENT="mongomigrator",
+)
